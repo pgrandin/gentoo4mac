@@ -1,0 +1,34 @@
+#!/bin/busybox sh
+
+mount -t proc none /proc 
+mount -t sysfs none /sys 
+mount -t devtmpfs none /dev
+
+echo "Initial root disk loaded. Proceeding."
+
+UUID=`sed -e 's/ /\n/g' < /proc/cmdline | grep -no 'ROOT_UUID=.*'|cut -f2 -d'='`
+
+dev=""
+echo "Waiting for USB device with partition '${UUID}'"
+while [ "$dev" = "" ]; do 
+    dev=`blkid |awk 'BEGIN { FS = ":"}; /UUID="'${UUID}'"/ {print $1}'`
+    echo -n "."
+    sleep 1
+done
+
+echo "Trying to mount ${dev} as /"
+
+mkdir -p /mnt/3
+mount ${dev} /mnt/3 || /bin/busybox sh
+cd /mnt/3
+
+# Clean up. 
+umount /proc 
+umount /sys 
+umount /dev
+
+# Boot the real thing. 
+exec switch_root /mnt/3 /sbin/init 
+
+echo "switch_root failed :("
+/bin/busybox sh
